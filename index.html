@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internet Speed Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+            margin: 0;
+        }
+        .container {
+            max-width: 90%;
+            margin: auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 1.5em;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:disabled {
+            background-color: #aaa;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .progress-bar-inner {
+            height: 20px;
+            width: 0;
+            background-color: #007bff;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+        }
+        canvas {
+            margin-top: 20px;
+            max-width: 100%;
+            height: auto;
+        }
+        input {
+            padding: 10px;
+            font-size: 1em;
+            width: calc(50% - 10px);
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .warning-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #f44336;
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            font-size: 0.9em;
+            display: none;
+            z-index: 1000;
+        }
+        .warning-banner button {
+            margin-left: 10px;
+            padding: 5px 10px;
+            background-color: #fff;
+            color: #f44336;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="warning-banner" id="warningBanner">
+        주의! 고객님이 설정한 값은 버그를 발생시킬수있습니다 그래도 진행하겠습니까?
+        <button onclick="restoreInterval()">Restore</button>
+        <button onclick="confirmInterval()">Confirm</button>
+    </div>
+
+    <div class="container">
+        <h1>iris Speed Test</h1>
+        <div class="input-group">
+            <label for="durationInput">테스트 시간 (초): </label>
+            <input type="number" id="durationInput" value="30" min="1" />
+
+            <label for="intervalInput">측정 간격 설정 (초): </label>
+            <input type="number" id="intervalInput" value="1" step="0.01" min="0.01" onchange="checkIntervalValue()" />
+        </div>
+
+        <button id="startButton" onclick="startTest()">Start Speed Test</button>
+        <div class="progress-bar">
+            <div id="progressBar" class="progress-bar-inner">0%</div>
+        </div>
+        <p id="statusMessage"></p>
+        <p id="result"></p>
+
+        <canvas id="speedChart"></canvas>
+    </div>
+
+    <script>
+        // JavaScript code remains unchanged
+        let testImage = "https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg";
+        let totalSpeed = 0;
+        let testCount = 0;
+        let maxTests = 0;
+        let testInterval;
+        let speedData = [];
+        let labels = [];
+        let previousInterval = 1;
+
+        const ctx = document.getElementById('speedChart').getContext('2d');
+        const speedChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Download Speed (Mbps)',
+                    data: speedData,
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Time (s)' }},
+                    y: { title: { display: true, text: 'Speed (Mbps)' }, beginAtZero: true }
+                }
+            }
+        });
+
+        function checkIntervalValue() {
+            const intervalInput = document.getElementById('intervalInput');
+            const currentInterval = parseFloat(intervalInput.value);
+
+            if (currentInterval < 0.1) {
+                document.getElementById('warningBanner').style.display = 'block';
+                document.getElementById('startButton').disabled = true;
+            } else {
+                document.getElementById('startButton').disabled = false;
+                previousInterval = currentInterval;
+            }
+        }
+
+        function restoreInterval() {
+            document.getElementById('intervalInput').value = previousInterval;
+            document.getElementById('warningBanner').style.display = 'none';
+            document.getElementById('startButton').disabled = false;
+        }
+
+        function confirmInterval() {
+            document.getElementById('warningBanner').style.display = 'none';
+            document.getElementById('startButton').disabled = false;
+        }
+
+        function startTest() {
+            const durationInput = document.getElementById('durationInput');
+            const intervalInput = document.getElementById('intervalInput');
+            const testDuration = parseInt(durationInput.value, 10);
+            const interval = parseFloat(intervalInput.value) * 1000;
+
+            if (isNaN(testDuration) || testDuration <= 0 || isNaN(interval) || interval <= 0) {
+                alert('Please enter valid test duration and interval.');
+                return;
+            }
+
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('statusMessage').textContent = 'Testing...';
+            document.getElementById('result').textContent = '';
+            totalSpeed = 0;
+            testCount = 0;
+            maxTests = Math.floor(testDuration * 1000 / interval);
+            updateProgressBar(0);
+            speedData.length = 0;
+            labels.length = 0;
+
+            testInterval = setInterval(function() {
+                if (testCount >= maxTests) {
+                    clearInterval(testInterval);
+                    const averageSpeed = (totalSpeed / testCount).toFixed(2);
+                    document.getElementById('result').textContent = 'Average Download Speed: ' + averageSpeed + ' Mbps';
+                    document.getElementById('statusMessage').textContent = 'Test complete!';
+                    document.getElementById('startButton').disabled = false;
+                    return;
+                }
+                measureSpeed();
+            }, interval);
+        }
+
+        function measureSpeed() {
+            const startTime = new Date().getTime();
+            const download = new Image();
+
+            download.onload = function () {
+                const endTime = new Date().getTime();
+                const duration = (endTime - startTime) / 1000;
+                const fileSize = 1000000 * 5;
+                const speed = (fileSize / duration / (1024 * 1024)).toFixed(2);
+
+                totalSpeed += parseFloat(speed);
+                testCount++;
+                updateChart(testCount * parseFloat(document.getElementById('intervalInput').value), speed);
+                updateProgressBar((testCount / maxTests) * 100);
+            };
+
+            download.onerror = function() {
+                console.log('Error downloading test image');
+            };
+
+            download.src = testImage + "?cache=" + Math.random();
+        }
+
+        function updateProgressBar(percent) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = Math.floor(percent) + '%';
+        }
+
+        function updateChart(time, speed) {
+            speedData.push(speed);
+            labels.push(time);
+            speedChart.update();
+        }
+    </script>
+</body>
+</html>
